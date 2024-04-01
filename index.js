@@ -15,10 +15,7 @@ const corsOptions = () => {
     };
   } else {
     return {
-      origin: [
-        process.env.FRONT_DOMAIN_TASK_LIST,
-        process.env.FRONT_DOMAIN_CHAT_APP,
-      ],
+      origin: [process.env.FRONT_DOMAIN],
     };
   }
 };
