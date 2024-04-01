@@ -86,6 +86,11 @@ const verifyToken = (req, res, next) => {
 };
 
 // Endpoints
+
+app.get("/", (req, res) => {
+  res.json("TESTING...");
+});
+
 app.post("/register-user", (req, res) => {
   const { username, password, first_name, last_name } = req.body;
 
