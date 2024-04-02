@@ -624,6 +624,7 @@ app.post("/get-conversation-messages", verifyToken, async (req, res) => {
 });
 
 io.on("connection", (socket) => {
+  console.log(socket.handshake.headers.origin);
   //
   startConnection(socket);
   //
