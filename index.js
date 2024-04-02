@@ -8,26 +8,34 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 
 // all uses
-const corsOptions = () => {
-  if (process.env.IS_DEV_MODE) {
-    return {
+// const corsOptions = () => {
+//   if (process.env.IS_DEV_MODE) {
+//     return {
+//       origin: ["http://localhost:3001"],
+//     };
+//   } else {
+//     return {
+//       origin: [process.env.FRONT_DOMAIN],
+//     };
+//   }
+// };
+const corsOptions = process.env.IS_DEV_MODE
+  ? {
       origin: ["http://localhost:3001"],
-    };
-  } else {
-    return {
+    }
+  : {
       origin: [process.env.FRONT_DOMAIN],
     };
-  }
-};
-console.log(corsOptions());
-app.use(cors(corsOptions()));
+
+console.log(corsOptions);
+app.use(cors(corsOptions));
 app.use(express.json());
 
 // server
 const server = http.createServer(app);
 const { Server } = require("socket.io");
 const io = new Server(server, {
-  cors: corsOptions(),
+  cors: corsOptions,
 });
 
 // KNEX Config
