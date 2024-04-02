@@ -8,17 +8,6 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 
 // all uses
-// const corsOptions = () => {
-//   if (process.env.IS_DEV_MODE) {
-//     return {
-//       origin: ["http://localhost:3001"],
-//     };
-//   } else {
-//     return {
-//       origin: [process.env.FRONT_DOMAIN],
-//     };
-//   }
-// };
 const corsOptions = process.env.IS_DEV_MODE
   ? {
       origin: ["http://localhost:3001"],
@@ -277,33 +266,6 @@ app.post("/search-user", verifyToken, (req, res) => {
     });
 });
 
-// app.post("/check-friendship", verifyToken, (req, res) => {
-//   const { decoded_user_id, personID } = req.body;
-
-//   db(_DB_TABLE_FRIENDSHIPS)
-//     .select("*")
-//     .where({
-//       requestor: decoded_user_id,
-//       recipient: personID,
-//     })
-//     .orWhere({
-//       requestor: personID,
-//       recipient: decoded_user_id,
-//     })
-//     .then((data) => {
-//       sendConfirmData(res, data);
-//     })
-//     .catch((e) => {
-//       sendError(res, _SERVER_SIDE_ERROR_MESSAGE);
-//     });
-// });
-
-//
-
-//
-//
-//
-
 app.post("/send-friend-request", verifyToken, (req, res) => {
   const { decoded_user_id, personID } = req.body;
 
@@ -319,10 +281,16 @@ app.post("/send-friend-request", verifyToken, (req, res) => {
       recipient: personID,
       status: _FRIENDSHIP_STATUS_PENDING,
     })
-    .then((data) => {
+    .then(async (data) => {
       if (!data.length) {
         sendError(res, "Unable to send the request");
       } else {
+        let { friendship_recipient } = data[0];
+        let socket_to_emit_to = await retrieveSocketID(friendship_recipient);
+        io.to(socket_to_emit_to).emit(
+          "new_friend_request",
+          "You have a new friend request"
+        );
         sendConfirmData(res, data);
       }
     })
@@ -396,7 +364,7 @@ app.post("/accept-friend-request", verifyToken, (req, res) => {
   const { decoded_user_id, requestID } = req.body;
 
   db(_DB_TABLE_FRIENDSHIPS)
-    .returning("status")
+    .returning("*")
     .update({
       status: _FRIENDSHIP_STATUS_ACCEPTED,
     })
@@ -404,10 +372,16 @@ app.post("/accept-friend-request", verifyToken, (req, res) => {
       id: requestID,
       recipient: decoded_user_id,
     })
-    .then((data) => {
+    .then(async (data) => {
       if (!data.length) {
         sendError(res, "Unable to accept the request");
       } else {
+        let { requestor } = data[0];
+        let socket_to_emit_to = await retrieveSocketID(requestor);
+        io.to(socket_to_emit_to).emit(
+          "friend_request_accepted",
+          "Your friend request has been accepted"
+        );
         sendConfirmData(res, data);
       }
     })
@@ -624,7 +598,6 @@ app.post("/get-conversation-messages", verifyToken, async (req, res) => {
 });
 
 io.on("connection", (socket) => {
-  console.log(socket.handshake.headers.origin);
   //
   startConnection(socket);
   //
@@ -662,12 +635,9 @@ io.on("connection", (socket) => {
   );
   //
 
-  //
-  //
-  //
   // disconnect socket function
   socket.on("disconnect", () => {
-    console.log("   | " + socket.id + " | -");
+    console.log(socket.id + " disconnected");
   });
 });
 
@@ -701,19 +671,10 @@ const sendConfirmData = (res, ...data) => {
 
 // Socket Side Functions
 
-const decodeEmittorToken = (token) => {
-  const decodedToken = jwt.verify(token, process.env.JWT_SECRET_KEY);
-  const emittingUserID = decodedToken.user_id;
-  return emittingUserID;
-};
-
 const startConnection = (socket) => {
   const { token } = socket.handshake.query;
   const decodedToken = jwt.verify(token, process.env.JWT_SECRET_KEY);
   const connectingUserID = decodedToken.user_id;
-  console.log("token: " + token);
-  console.log("Decoded User ID: " + connectingUserID);
-  console.log("Socket ID: " + socket.id);
 
   db(_DB_TABLE_USER_SOCKET)
     .select("*")
@@ -784,67 +745,6 @@ const startConnection = (socket) => {
   //     console.log(error);
   //     socket.emit("error", "Unable to update Socket ID");
   //   });
-};
-
-// const storeOrUpdateSocketID = (userID, socketID) => {
-//   return new Promise((resolve, reject) => {
-//     db(_DB_TABLE_USER_SOCKET)
-//       .select("*")
-//       .where({
-//         user_id: userID,
-//       })
-//       .then((data) => {
-//         if (!data.length) {
-//           db(_DB_TABLE_USER_SOCKET)
-//             .returning("*")
-//             .insert({
-//               user_id: userID,
-//               socket_id: socketID,
-//             })
-//             .then((data) => {
-//               resolve(data.length > 0);
-//             })
-//             .catch(reject);
-//         } else {
-//           db(_DB_TABLE_USER_SOCKET)
-//             .returning("*")
-//             .update({
-//               socket_id: socketID,
-//             })
-//             .where({
-//               user_id: userID,
-//             })
-//             .then((data) => {
-//               resolve(data.length > 0);
-//             })
-//             .catch(reject);
-//         }
-//       })
-//       .catch(reject);
-//   });
-// };
-
-// const emitErrorMessage = (msg) => {
-//   return {
-//     status: 0,
-//     msg,
-//   };
-// };
-
-const retrieveConversations = (userID) => {
-  let data = [];
-  db(_DB_TABLE_CONVERSATIONS)
-    .select("*")
-    .where({
-      user1_id: userID,
-    })
-    .orWhere({
-      user2_id: userID,
-    })
-    .then((data) => {
-      data = data;
-    });
-  return data;
 };
 
 const retrieveMessagesAndOtherPartyID = async (conversationID, requestorID) => {
