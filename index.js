@@ -735,6 +735,10 @@ const startConnection = (socket) => {
             }
           })
           .catch((e) => {
+            console.log(
+              "Socket connection Error insertting socket into database"
+            );
+            console.log(e);
             socket.emit("error", _SERVER_SIDE_ERROR_MESSAGE);
           });
       } else {
@@ -756,11 +760,14 @@ const startConnection = (socket) => {
             }
           })
           .catch((e) => {
+            console.log("Unable to Update and Return the socket ID");
+            console.log(e);
             socket.emit("error", _SERVER_SIDE_ERROR_MESSAGE);
           });
       }
     })
     .catch((e) => {
+      console.log("Socket connection outter ERROR");
       socket.emit("error", _SERVER_SIDE_ERROR_MESSAGE);
     });
 
