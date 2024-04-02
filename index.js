@@ -711,6 +711,9 @@ const startConnection = (socket) => {
   const { token } = socket.handshake.query;
   const decodedToken = jwt.verify(token, process.env.JWT_SECRET_KEY);
   const connectingUserID = decodedToken.user_id;
+  console.log("token: " + token);
+  console.log("Decoded User ID: " + connectingUserID);
+  console.log("Socket ID: " + socket.id);
 
   db(_DB_TABLE_USER_SOCKET)
     .select("*")
