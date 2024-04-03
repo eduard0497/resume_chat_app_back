@@ -146,6 +146,7 @@ app.post("/user-login", (req, res) => {
         if (!bcrypt.compareSync(password, db_stored_password)) {
           sendError(res, "Wrong password");
         } else {
+          console.log(data);
           let { first_name } = data[0];
           let { last_name } = data[0];
           let { username } = data[0];
