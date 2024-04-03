@@ -146,11 +146,25 @@ app.post("/user-login", (req, res) => {
         if (!bcrypt.compareSync(password, db_stored_password)) {
           sendError(res, "Wrong password");
         } else {
+          let { first_name } = data[0];
+          let { last_name } = data[0];
+          let { username } = data[0];
+          let { account_created } = data[0];
           const token = jwt.sign(
             { user_id: data[0].id },
             process.env.JWT_SECRET_KEY
           );
-          sendConfirmData(res, token);
+          let constructedObject = {
+            first_name,
+            last_name,
+            username,
+            user_since: account_created,
+          };
+          res.json({
+            status: 1,
+            userInfo: constructedObject,
+            token,
+          });
         }
       }
     })
@@ -164,7 +178,33 @@ app.post("/check-token", verifyToken, (req, res) => {
 });
 
 app.post("/authorize-user-to-proceed", verifyToken, (req, res) => {
-  sendConfirmMessage(res, "User authorized");
+  const { decoded_user_id } = req.body;
+
+  db(_DB_TABLE_USERS)
+    .select("*")
+    .where({
+      id: decoded_user_id,
+    })
+    .then((data) => {
+      if (!data.length) {
+        sendError(res, "No user has been found!!!");
+      } else if (data.length > 1) {
+        sendError(res, "Multiple users have been found");
+      } else {
+        let { first_name } = data[0];
+        let { last_name } = data[0];
+        let { username } = data[0];
+        let { account_created } = data[0];
+
+        let constructedObject = {
+          first_name,
+          last_name,
+          username,
+          user_since: account_created,
+        };
+        sendConfirmData(res, constructedObject);
+      }
+    });
 });
 
 app.post("/get-user-info", verifyToken, (req, res) => {
