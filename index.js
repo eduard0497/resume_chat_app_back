@@ -74,11 +74,8 @@ const _FRIENDSHIP_STATUS_ACCEPTED = "accepted";
 const verifyToken = (req, res, next) => {
   try {
     const { token } = req.body;
-    console.log("Token: " + token);
     const decodedToken = jwt.verify(token, process.env.JWT_SECRET_KEY);
-    console.log("Decoded Token: " + decodedToken);
     req.body.decoded_user_id = decodedToken.user_id;
-    console.log("Decoded Token User ID: " + decodedToken.user_id);
     next();
   } catch (e) {
     sendError(res, "Not authorized");
@@ -177,7 +174,6 @@ app.post("/user-login", (req, res) => {
 });
 
 app.post("/check-token", verifyToken, (req, res) => {
-  console.log("Mtav Valid Token");
   sendConfirmMessage(res, "Valid Token");
 });
 
