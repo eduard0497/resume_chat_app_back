@@ -420,7 +420,7 @@ app.post("/accept-friend-request", verifyToken, (req, res) => {
         let socket_to_emit_to = await retrieveSocketID(requestor);
         io.to(socket_to_emit_to).emit(
           "friend_request_accepted",
-          "Your friend request has been accepted"
+          `Your friend request has been accepted`
         );
         sendConfirmData(res, data);
       }
@@ -563,7 +563,11 @@ app.post("/get-current-user-conversations", verifyToken, (req, res) => {
       `${_DB_TABLE_USERS}.id as user_id`,
       `${_DB_TABLE_USERS}.username`,
       `${_DB_TABLE_USERS}.first_name`,
-      `${_DB_TABLE_USERS}.last_name`
+      `${_DB_TABLE_USERS}.last_name`,
+      `${_DB_TABLE_MESSAGES}.sender_id as last_message_sender_id`,
+      `${_DB_TABLE_MESSAGES}.message_content as last_message`,
+      `${_DB_TABLE_MESSAGES}.sent_at as last_message_time`,
+      `${_DB_TABLE_MESSAGES}.is_read as last_message_is_read`
     )
     .join(_DB_TABLE_USERS, function () {
       this.on(
@@ -617,20 +621,40 @@ app.post("/get-conversation-messages", verifyToken, async (req, res) => {
   const { decoded_user_id, conversationID } = req.body;
 
   try {
-    let data = await retrieveMessagesAndOtherPartyID(
-      conversationID,
-      decoded_user_id
-    );
-    if (!data.otherPartyID) {
-      sendError(res, "Unable to get other party ID");
-    } else {
-      res.json({
-        status: 1,
-        myID: decoded_user_id,
-        otherPartyID: data.otherPartyID,
-        messages: data.messages,
+    db(_DB_TABLE_MESSAGES)
+      .where({
+        conversation_id: conversationID,
+      })
+      .andWhereNot({
+        sender_id: decoded_user_id,
+      })
+      .update({
+        is_read: true,
+      })
+      .returning("*")
+      .orderBy("id", "desc")
+      .then(async (readMessages) => {
+        let data = await retrieveMessagesAndOtherPartyID(
+          conversationID,
+          decoded_user_id
+        );
+        if (!data.otherPartyID) {
+          sendError(res, "Unable to get other party ID");
+        } else {
+          if (readMessages.length > 0) {
+            let otherPartyID = await retrieveSocketID(data.otherPartyID);
+            io.to(otherPartyID).emit("messages_have_been_read", {
+              conversation_id: conversationID,
+            });
+          }
+          res.json({
+            status: 1,
+            myID: decoded_user_id,
+            otherPartyID: data.otherPartyID,
+            messages: data.messages,
+          });
+        }
       });
-    }
   } catch (error) {
     console.log(error);
     sendError(res, _SERVER_SIDE_ERROR_MESSAGE);
@@ -642,6 +666,9 @@ io.on("connection", (socket) => {
   startConnection(socket);
   //
 
+  //
+  //
+  //
   //
   socket.on(
     "send_message",
@@ -664,7 +691,9 @@ io.on("connection", (socket) => {
             console.log("ERROR OCCURED");
           } else {
             let socketID = await retrieveSocketID(otherPartyID);
-            io.to(socketID).emit("receive_message", data[0]);
+            io.to(socketID).emit("receive_message", {
+              message_details: data[0],
+            });
             callback({
               status: 1,
               msg: "Message saved",
@@ -674,6 +703,26 @@ io.on("connection", (socket) => {
     }
   );
   //
+  //
+  //
+  //
+
+  socket.on("i_read_the_message", ({ message_details }) => {
+    db(_DB_TABLE_MESSAGES)
+      .returning("*")
+      .update({
+        is_read: true,
+      })
+      .where({
+        id: message_details.id,
+      })
+      .then(async (data) => {
+        let socketID = await retrieveSocketID(data[0].sender_id);
+        io.to(socketID).emit("other_party_read_message", {
+          message_details: data[0],
+        });
+      });
+  });
 
   // disconnect socket function
   socket.on("disconnect", () => {
