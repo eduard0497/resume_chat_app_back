@@ -557,6 +557,92 @@ app.post("/start-messaging-from-friends-list", verifyToken, (req, res) => {
 app.post("/get-current-user-conversations", verifyToken, (req, res) => {
   const { decoded_user_id } = req.body;
 
+  // db(_DB_TABLE_CONVERSATIONS)
+  //   .select(
+  //     "conversations.id as conversation_id",
+  //     `${_DB_TABLE_USERS}.id as user_id`,
+  //     `${_DB_TABLE_USERS}.first_name as user_first_name`,
+  //     `${_DB_TABLE_USERS}.last_name as user_last_name`,
+  //     "messages.id as message_id",
+  //     "messages.conversation_id as message_conversation_id",
+  //     "messages.sender_id as sender_id",
+  //     "messages.message_content as message_content",
+  //     "messages.sent_at as sent_at",
+  //     "messages.is_read as is_read"
+  //   )
+  //   .from("conversations")
+  //   .join(_DB_TABLE_USERS, function () {
+  //     this.on(
+  //       `${_DB_TABLE_CONVERSATIONS}.user1_id`,
+  //       "=",
+  //       `${_DB_TABLE_USERS}.id`
+  //     ).orOn(
+  //       `${_DB_TABLE_CONVERSATIONS}.user2_id`,
+  //       "=",
+  //       `${_DB_TABLE_USERS}.id`
+  //     );
+  //   })
+  //   .andWhere(function () {
+  //     this.whereNot({
+  //       [`${_DB_TABLE_USERS}.id`]: decoded_user_id,
+  //     });
+  //   })
+  //   .leftJoin("messages", "conversations.id", "messages.conversation_id")
+  //   .where(function () {
+  //     this.where({
+  //       user1_id: decoded_user_id,
+  //     }).orWhere({
+  //       user2_id: decoded_user_id,
+  //     });
+  //   })
+  //   .andWhere(function () {
+  //     this.whereNot({
+  //       [`${_DB_TABLE_USERS}.id`]: decoded_user_id,
+  //     });
+  //   })
+  //   .orderBy("conversations.id", "asc")
+  //   .orderBy("messages.sent_at", "asc")
+  //   .then((rows) => {
+  //     const conversations = [];
+  //     let currentConversation = null;
+
+  //     rows.forEach((row) => {
+  //       if (
+  //         !currentConversation ||
+  //         currentConversation.id !== row.conversation_id
+  //       ) {
+  //         currentConversation = {
+  //           id: row.conversation_id,
+  //           user_id: row.user_id,
+  //           user_first_name: row.user_first_name,
+  //           user_last_name: row.user_last_name,
+  //           messages: [], // Initialize an array to store messages
+  //         };
+  //         conversations.push(currentConversation);
+  //       }
+
+  //       if (row.message_id) {
+  //         // Check if message exists
+  //         currentConversation.messages.push({
+  //           // Push message to messages array
+  //           id: row.message_id,
+  //           sender_id: row.sender_id,
+  //           message_content: row.message_content,
+  //           sent_at: row.sent_at,
+  //           is_read: row.is_read,
+  //         });
+  //       }
+  //     });
+
+  //     sendConfirmData(res, conversations);
+  //   })
+  //   .catch((e) => {
+  //     res.json({
+  //       status: 0,
+  //       msg: "error",
+  //     });
+  //   });
+
   db(_DB_TABLE_CONVERSATIONS)
     .select(
       `${_DB_TABLE_CONVERSATIONS}.id as conversation_id`,
@@ -564,10 +650,11 @@ app.post("/get-current-user-conversations", verifyToken, (req, res) => {
       `${_DB_TABLE_USERS}.username`,
       `${_DB_TABLE_USERS}.first_name`,
       `${_DB_TABLE_USERS}.last_name`,
-      `${_DB_TABLE_MESSAGES}.sender_id as last_message_sender_id`,
-      `${_DB_TABLE_MESSAGES}.message_content as last_message`,
-      `${_DB_TABLE_MESSAGES}.sent_at as last_message_time`,
-      `${_DB_TABLE_MESSAGES}.is_read as last_message_is_read`
+      `${_DB_TABLE_MESSAGES}.id as message_id`,
+      `${_DB_TABLE_MESSAGES}.sender_id`,
+      `${_DB_TABLE_MESSAGES}.message_content`,
+      `${_DB_TABLE_MESSAGES}.sent_at`,
+      `${_DB_TABLE_MESSAGES}.is_read`
     )
     .join(_DB_TABLE_USERS, function () {
       this.on(
@@ -609,7 +696,32 @@ app.post("/get-current-user-conversations", verifyToken, (req, res) => {
     })
     .orderBy(`${_DB_TABLE_MESSAGES}.sent_at`, "desc")
     .then((data) => {
-      sendConfirmData(res, data);
+      const result = Object.values(
+        data.reduce((acc, obj) => {
+          const {
+            conversation_id,
+            user_id,
+            username,
+            first_name,
+            last_name,
+            ...message
+          } = obj;
+          if (!acc[conversation_id]) {
+            acc[conversation_id] = {
+              conversation_id,
+              user_id,
+              username,
+              first_name,
+              last_name,
+              messages: [message],
+            };
+          } else {
+            acc[conversation_id].messages.push(message);
+          }
+          return acc;
+        }, {})
+      );
+      sendConfirmData(res, result);
     })
     .catch((e) => {
       console.log(e);
@@ -696,7 +808,7 @@ io.on("connection", (socket) => {
             });
             callback({
               status: 1,
-              msg: "Message saved",
+              message_details: data[0],
             });
           }
         });
