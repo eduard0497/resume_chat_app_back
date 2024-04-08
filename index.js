@@ -311,10 +311,10 @@ app.post("/send-friend-request", verifyToken, (req, res) => {
 
   db(_DB_TABLE_FRIENDSHIPS)
     .returning([
-      "id as friendship_id",
-      "requestor as friendship_requestor",
-      "recipient as friendship_recipient",
-      "status",
+      `${_DB_TABLE_FRIENDSHIPS}.id as friendship_id`,
+      `${_DB_TABLE_FRIENDSHIPS}.requestor as friendship_requestor`,
+      `${_DB_TABLE_FRIENDSHIPS}.recipient as friendship_recipient`,
+      `${_DB_TABLE_FRIENDSHIPS}.status`,
     ])
     .insert({
       requestor: decoded_user_id,
@@ -325,11 +325,12 @@ app.post("/send-friend-request", verifyToken, (req, res) => {
       if (!data.length) {
         sendError(res, "Unable to send the request");
       } else {
-        let { friendship_recipient } = data[0];
+        let { friendship_recipient, friendship_requestor } = data[0];
+        let requestor_info = await getUserInfo(friendship_requestor);
         let socket_to_emit_to = await retrieveSocketID(friendship_recipient);
         io.to(socket_to_emit_to).emit(
           "new_friend_request",
-          "You have a new friend request"
+          `${requestor_info?.first_name} ${requestor_info?.last_name} wants to be friends`
         );
         sendConfirmData(res, data);
       }
@@ -418,10 +419,7 @@ app.post("/accept-friend-request", verifyToken, (req, res) => {
       } else {
         let { requestor } = data[0];
         let socket_to_emit_to = await retrieveSocketID(requestor);
-        io.to(socket_to_emit_to).emit(
-          "friend_request_accepted",
-          `Your friend request has been accepted`
-        );
+        io.to(socket_to_emit_to).emit("friend_request_accepted", data);
         sendConfirmData(res, data);
       }
     })
@@ -868,6 +866,19 @@ const sendConfirmData = (res, ...data) => {
     status: 1,
     data: data.length === 1 ? data[0] : data,
   });
+};
+
+const getUserInfo = async (id) => {
+  let userDate;
+  await db(_DB_TABLE_USERS)
+    .select("*")
+    .where({
+      id,
+    })
+    .then((data) => {
+      userDate = data[0];
+    });
+  return userDate;
 };
 
 // Socket Side Functions
