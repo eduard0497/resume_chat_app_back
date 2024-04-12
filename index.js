@@ -419,7 +419,11 @@ app.post("/accept-friend-request", verifyToken, (req, res) => {
       } else {
         let { requestor } = data[0];
         let socket_to_emit_to = await retrieveSocketID(requestor);
-        io.to(socket_to_emit_to).emit("friend_request_accepted", data);
+        let acceptor_info_to_send_to_requestor = await getUserInfo(requestor);
+        io.to(socket_to_emit_to).emit(
+          "friend_request_accepted",
+          acceptor_info_to_send_to_requestor
+        );
         sendConfirmData(res, data);
       }
     })
